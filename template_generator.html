@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>技术文档模板生成器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50 min-h-screen font-sans">
+  <div class="max-w-5xl mx-auto p-4 md:p-6">
+    <!-- 头部 -->
+    <div class="text-center mb-6">
+      <h1 class="text-2xl md:text-3xl font-bold mb-2"><i class="fa fa-file-text-o text-blue-600"></i> 技术文档模板生成器</h1>
+      <p class="text-gray-500">选择文档类型，自动生成结构化大纲与可编辑模板</p>
+    </div>
+
+    <!-- 选择文档类型 -->
+    <div class="bg-white rounded-xl shadow p-6 mb-6">
+      <h2 class="font-bold text-lg mb-4"><i class="fa fa-cubes text-blue-600"></i> 选择文档类型</h2>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3" id="docTypeSelector"></div>
+    </div>
+
+    <!-- 生成结果区域 -->
+    <div id="resultArea" class="hidden space-y-6">
+      <!-- 变量替换面板 -->
+      <div class="bg-white rounded-xl shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-lg"><i class="fa fa-tags text-blue-600"></i> 变量替换系统</h2>
+          <button onclick="applyVariables()" class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"><i class="fa fa-exchange"></i> 替换到模板</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div><label class="block text-xs text-gray-500 mb-1">项目名称</label>
+            <input type="text" id="varProject" class="w-full border rounded px-3 py-2 text-sm" placeholder="如：XX系统"
+              oninput="document.getElementById('varProjectPreview').textContent=this.value||'[项目名称]'"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">版本号</label>
+            <input type="text" id="varVersion" class="w-full border rounded px-3 py-2 text-sm" placeholder="如：v2.0"
+              oninput="document.getElementById('varVersionPreview').textContent=this.value||'[版本号]'"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">作者/团队</label>
+            <input type="text" id="varAuthor" class="w-full border rounded px-3 py-2 text-sm" placeholder="如：张三"
+              oninput="document.getElementById('varAuthorPreview').textContent=this.value||'[作者]'"></div>
+        </div>
+        <div class="mt-2 text-xs text-gray-400 flex gap-4">
+          <span>预览: 项目=<strong id="varProjectPreview">[项目名称]</strong></span>
+          <span>版本=<strong id="varVersionPreview">[版本号]</strong></span>
+          <span>作者=<strong id="varAuthorPreview">[作者]</strong></span>
+        </div>
+      </div>
+
+      <!-- 大纲预览 -->
+      <div class="bg-white rounded-xl shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-lg"><i class="fa fa-list-ol text-blue-600"></i> 文档大纲</h2>
+          <div class="flex gap-2">
+            <button onclick="copyOutline()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"><i class="fa fa-copy"></i> 复制大纲</button>
+          </div>
+        </div>
+        <div id="outlinePreview" class="text-sm text-gray-700 font-mono bg-gray-50 rounded p-4 whitespace-pre-wrap"></div>
+      </div>
+
+      <!-- 可编辑模板 -->
+      <div class="bg-white rounded-xl shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-bold text-lg"><i class="fa fa-edit text-blue-600"></i> 可编辑模板</h2>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="saveFavorite()" class="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"><i class="fa fa-heart"></i> 收藏当前版本</button>
+            <button onclick="exportMarkdown()" class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"><i class="fa fa-download"></i> 导出 .md</button>
+            <button onclick="copyTemplate()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"><i class="fa fa-clipboard"></i> 复制模板</button>
+          </div>
+        </div>
+        <textarea id="templateEditor" rows="24" class="w-full border rounded p-4 text-sm font-mono bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-400"></textarea>
+        <!-- 收藏列表 -->
+        <div id="favoriteSection" class="mt-4 hidden">
+          <hr class="mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-bold text-sm"><i class="fa fa-heart text-red-500"></i> 已收藏的模板版本</h3>
+            <button onclick="clearFavorites()" class="text-red-400 hover:text-red-600 text-xs"><i class="fa fa-trash"></i> 清空收藏</button>
+          </div>
+          <div id="favoriteList" class="space-y-2 max-h-48 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ============== 5种文档类型的完整模板 ==============
+    const DOC_TEMPLATES = {
+      'api': {
+        id: 'api',
+        name: 'API文档',
+        icon: 'fa-plug',
+        color: 'blue',
+        desc: 'RESTful/GraphQL接口文档',
+        outline: [
+          '1. 文档概述',
+          '   1.1 文档目的与适用范围',
+          '   1.2 接口版本与更新历史',
+          '   1.3 相关文档与参考资料',
+          '',
+          '2. 快速入门',
+          '   2.1 环境要求与前置条件',
+          '   2.2 认证鉴权方式',
+          '   2.3 第一个API调用示例',
+          '',
+          '3. 通用说明',
+          '   3.1 基础URL与请求格式',
+          '   3.2 公共请求头/响应头',
+          '   3.3 分页、排序、过滤规范',
+          '   3.4 错误码与错误处理',
+          '   3.5 速率限制说明',
+          '',
+          '4. API接口详情',
+          '   4.1 [模块A] 接口列表',
+          '       POST /api/v1/resource  创建资源',
+          '       GET  /api/v1/resource  查询资源列表',
+          '       GET  /api/v1/resource/:id  查询单个资源',
+          '       PUT  /api/v1/resource/:id  更新资源',
+          '       DELETE /api/v1/resource/:id  删除资源',
+          '   4.2 [模块B] 接口列表',
+          '',
+          '5. 请求/响应示例',
+          '   5.1 成功响应示例',
+          '   5.2 错误响应示例',
+          '   5.3 SDK调用示例（多语言）',
+          '',
+          '6. Webhook / 回调说明（如适用）',
+          '',
+          '7. 常见问题（FAQ）',
+          '',
+          '8. 变更日志'
+        ].join('\n'),
+        template: `# API 文档
+
+## 1. 文档概述
+
+### 1.1 文档目的与适用范围
+
+> 本文档旨在描述 [项目名称] 的 API 接口规范，供前端、移动端及第三方开发者使用。
+
+### 1.2 接口版本与更新历史
+
+| 版本 | 日期 | 变更说明 | 作者 |
+|------|------|----------|------|
+| v1.0 | YYYY-MM-DD | 初始版本 | - |
+
+### 1.3 相关文档
+
+- [链接到其他相关文档]
+
+---
+
+## 2. 快速入门
+
+### 2.1 环境要求
+
+- 开发环境 URL：\`https://dev.api.example.com\`
+- 生产环境 URL：\`https://api.example.com\`
+
+### 2.2 认证鉴权
+
+采用 Bearer Token 方式，在请求头中传入：
+
+\`\`\`
+Authorization: Bearer <your_token>
+\`\`\`
+
+### 2.3 第一个 API 调用
+
+\`\`\`bash
+curl -X GET "https://api.example.com/v1/health" \\
+  -H "Authorization: Bearer YOUR_TOKEN"
+\`\`\`
+
+---
+
+## 3. 通用说明
+
+### 3.1 基础 URL
+
+- 所有请求的基础 URL：\`https://api.example.com/v1\`
+
+### 3.2 公共请求头
+
+| 请求头 | 必填 | 说明 |
+|--------|------|------|
+| Authorization | 是 | Bearer Token |
+| Content-Type | 是 | application/json |
+| X-Request-Id | 否 | 请求追踪ID |
+
+### 3.3 分页规范
+
+\`\`\`json
+{
+  "page": 1,
+  "page_size": 20,
+  "total": 100,
+  "data": []
+}
+\`\`\`
+
+### 3.4 错误码
+
+| 错误码 | 说明 | HTTP Status |
+|--------|------|-------------|
+| 0 | 成功 | 200 |
+| 1001 | 参数错误 | 400 |
+| 1002 | 未授权 | 401 |
+| 1003 | 无权限 | 403 |
+| 1004 | 资源不存在 | 404 |
+| 1005 | 频率限制 | 429 |
+| 9999 | 服务器内部错误 | 500 |
+
+### 3.5 速率限制
+
+- 免费用户：100次/分钟
+- 付费用户：1000次/分钟
+
+---
+
+## 4. API 接口详情
+
+### 4.1 用户管理
+
+#### POST /users 创建用户
+
+**请求体：**
+
+\`\`\`json
+{
+  "username": "string (必填，3-32字符)",
+  "email": "string (必填，邮箱格式)",
+  "password": "string (必填，8-64字符)"
+}
+\`\`\`
+
+**成功响应 (200)：**
+
+\`\`\`json
+{
+  "code": 0,
+  "message": "success",
+  "data": {
+    "id": "string",
+    "username": "string",
+    "email": "string",
+    "created_at": "datetime"
+  }
+}
+\`\`\`
+
+#### GET /users 查询用户列表
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| page | int | 否 | 页码，默认1 |
+| page_size | int | 否 | 每页条数，默认20 |
+| keyword | string | 否 | 搜索关键词 |
+
+#### GET /users/:id 查询用户详情
+
+**路径参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | string | 用户ID |
+
+#### PUT /users/:id 更新用户
+
+**请求体：**
+
+\`\`\`json
+{
+  "email": "string (选填)",
+  "password": "string (选填)",
+  "avatar": "string (选填)"
+}
+\`\`\`
+
+#### DELETE /users/:id 删除用户
+
+> 注意：删除操作不可恢复，请谨慎使用。
+
+### 4.2 订单管理
+
+（参照 4.1 格式添加接口详情）
+
+---
+
+## 5. 请求/响应示例
+
+### 5.1 成功响应
+
+\`\`\`json
+{
+  "code": 0,
+  "message": "success",
+  "data": {}
+}
+\`\`\`
+
+### 5.2 错误响应
+
+\`\`\`json
+{
+  "code": 1001,
+  "message": "参数错误",
+  "detail": "username 字段不能为空"
+}
+\`\`\`
+
+---
+
+## 6. Webhook 说明
+
+### 事件列表
+
+| 事件名称 | 触发条件 | 说明 |
+|----------|----------|------|
+| user.created | 用户创建成功 | 创建用户后触发 |
+| order.paid | 订单支付成功 | 用户完成支付后触发 |
+
+### Webhook 签名验证
+
+\`\`\`python
+# 验证示例
+import hmac, hashlib
+
+def verify_signature(payload, signature, secret):
+    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+\`\`\`
+
+---
+
+## 7. 常见问题
+
+**Q: Token 过期如何处理？**
+A: 使用 refresh_token 获取新的 access_token。
+
+**Q: 请求超时时间是多少？**
+A: 默认超时时间为 30 秒。
+
+---
+
+## 8. 变更日志
+
+| 版本 | 日期 | 变更内容 |
+|------|------|----------|
+| v1.0 | YYYY-MM-DD | 初始版本`
+      },
+      'quickstart': {
+        id: 'quickstart',
+        name: '快速入门',
+        icon: 'fa-rocket',
+        color: 'green',
+        desc: '新手引导与上手指南',
+        outline: [
+          '1. 产品简介',
+          '   1.1 产品定位与核心功能',
+          '   1.2 适用人群',
+          '',
+          '2. 环境准备',
+          '   2.1 系统要求',
+          '   2.2 注册与登录',
+          '   2.3 安装与配置',
+          '',
+          '3. 快速上手',
+          '   3.1 步骤一：初始化',
+          '   3.2 步骤二：核心配置',
+          '   3.3 步骤三：执行操作',
+          '   3.4 步骤四：验证结果',
+          '',
+          '4. 核心功能详解',
+          '   4.1 功能A：基本用法',
+          '   4.2 功能B：进阶用法',
+          '',
+          '5. 最佳实践',
+          '   5.1 推荐工作流',
+          '   5.2 常见场景示例',
+          '',
+          '6. 故障排除',
+          '   6.1 常见错误及解决方案',
+          '   6.2 获取帮助',
+          '',
+          '7. 下一步'
+        ].join('\n'),
+        template: `# 快速入门指南
+
+## 1. 产品简介
+
+### 1.1 产品定位
+
+[产品名称] 是一款面向 [目标用户] 的 [核心功能描述] 工具，旨在帮助用户 [解决什么问题]。
+
+### 1.2 核心特性
+
+- **特性一**：一句话说明
+- **特性二**：一句话说明
+- **特性三**：一句话说明
+
+### 1.3 适用人群
+
+- 人群一：[描述]
+- 人群二：[描述]
+
+---
+
+## 2. 环境准备
+
+### 2.1 系统要求
+
+| 环境 | 最低要求 | 推荐配置 |
+|------|----------|----------|
+| 操作系统 | [系统版本] | [系统版本] |
+| 内存 | [数值] | [数值] |
+| 存储空间 | [数值] | [数值] |
+| 网络 | [要求] | [要求] |
+
+### 2.2 注册与登录
+
+1. 访问 [注册页面链接]
+2. 填写注册信息（邮箱、密码等）
+3. 验证邮箱
+4. 登录控制台
+
+> 💡 提示：首次注册用户可获得 [权益说明]。
+
+### 2.3 安装与配置
+
+\`\`\`bash
+# 使用 npm 安装（示例）
+npm install [package-name] --save
+
+# 或使用 pip 安装（示例）
+pip install [package-name]
+\`\`\`
+
+---
+
+## 3. 快速上手
+
+### 3.1 步骤一：初始化
+
+\`\`\`javascript
+const sdk = require('[package-name]');
+const client = new sdk.Client({
+  apiKey: 'YOUR_API_KEY',
+  environment: 'sandbox'
+});
+\`\`\`
+
+### 3.2 步骤二：核心配置
+
+\`\`\`javascript
+client.configure({
+  timeout: 30000,
+  retries: 3,
+  logLevel: 'info'
+});
+\`\`\`
+
+### 3.3 步骤三：执行操作
+
+\`\`\`javascript
+async function run() {
+  const result = await client.execute({
+    action: 'example',
+    params: { key: 'value' }
+  });
+  console.log('执行结果:', result);
+}
+run();
+\`\`\`
+
+### 3.4 步骤四：验证结果
+
+\`\`\`javascript
+// 验证是否成功
+if (result.status === 'success') {
+  console.log('操作成功！结果ID:', result.id);
+} else {
+  console.error('操作失败:', result.error);
+}
+\`\`\`
+
+---
+
+## 4. 核心功能详解
+
+### 4.1 功能A：基本用法
+
+**功能描述：** [简要说明]
+
+**使用示例：**
+
+\`\`\`javascript
+// 代码示例
+\`\`\`
+
+**参数说明：**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| param1 | string | 是 | 说明 |
+| param2 | number | 否 | 说明 |
+
+### 4.2 功能B：进阶用法
+
+（同上格式）
+
+---
+
+## 5. 最佳实践
+
+### 5.1 推荐工作流
+
+\`\`\`mermaid
+graph LR
+  A[初始化] --> B[配置]
+  B --> C[执行]
+  C --> D[验证]
+  D --> E[监控]
+\`\`\`
+
+### 5.2 常见场景示例
+
+**场景一：[场景名称]**
+
+\`\`\`javascript
+// 完整示例代码
+\`\`\`
+
+---
+
+## 6. 故障排除
+
+### 6.1 常见错误
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| [错误信息] | [原因] | [解决方法] |
+| [错误信息] | [原因] | [解决方法] |
+
+### 6.2 获取帮助
+
+- 📖 [完整文档链接]
+- 💬 [社区/论坛链接]
+- 📧 support@example.com
+- 🐛 [Issue Tracker]
+
+---
+
+## 7. 下一步
+
+- [ ] 阅读完整文档
+- [ ] 探索高级功能
+- [ ] 加入社区讨论`
+      },
+      'troubleshoot': {
+        id: 'troubleshoot',
+        name: '故障排查',
+        icon: 'fa-wrench',
+        color: 'red',
+        desc: '问题诊断与解决指南',
+        outline: [
+          '1. 概述',
+          '   1.1 文档目的',
+          '   1.2 适用版本与范围',
+          '',
+          '2. 快速诊断流程',
+          '   2.1 诊断步骤总览',
+          '   2.2 自检清单',
+          '',
+          '3. 常见问题分类',
+          '   3.1 安装/部署问题',
+          '   3.2 配置问题',
+          '   3.3 性能问题',
+          '   3.4 网络/连接问题',
+          '   3.5 数据问题',
+          '',
+          '4. 详细故障排查',
+          '   4.1 [问题A]',
+          '      现象描述 → 可能原因 → 排查步骤 → 解决方案',
+          '   4.2 [问题B]',
+          '',
+          '5. 日志与调试',
+          '   5.1 日志采集方法',
+          '   5.2 调试模式启用',
+          '   5.3 关键日志解读',
+          '',
+          '6. 错误码参考',
+          '',
+          '7. 联系支持',
+          '   7.1 提交工单模板',
+          '   7.2 必备信息清单'
+        ].join('\n'),
+        template: `# 故障排查指南
+
+## 1. 概述
+
+### 1.1 文档目的
+
+本文档帮助用户诊断和解决 [产品/系统名称] 使用过程中遇到的常见问题。
+
+### 1.2 适用版本
+
+- 产品版本：[版本号]
+- 最后更新日期：YYYY-MM-DD
+
+---
+
+## 2. 快速诊断流程
+
+### 2.1 诊断步骤总览
+
+```
+遇到问题
+    ↓
+[1] 确认版本与配置
+    ↓
+[2] 检查错误信息/日志
+    ↓
+[3] 查阅常见问题列表
+    ↓
+[4] 执行对应解决方案
+    ↓
+[5] 验证问题是否解决
+    ↓
+[6] 如未解决 → 联系支持
+```
+
+### 2.2 自检清单
+
+- [ ] 是否使用了最新版本？
+- [ ] 配置文件格式是否正确？
+- [ ] 网络连接是否正常？
+- [ ] 是否有足够的资源（内存/磁盘）？
+- [ ] 是否按照文档进行了正确配置？
+
+---
+
+## 3. 常见问题分类
+
+### 3.1 安装/部署问题
+
+| 问题 | 可能原因 | 解决难度 |
+|------|----------|----------|
+| [问题描述] | [原因] | ⭐ |
+| [问题描述] | [原因] | ⭐⭐ |
+
+### 3.2 配置问题
+
+| 问题 | 可能原因 | 解决难度 |
+|------|----------|----------|
+| [问题描述] | [原因] | ⭐ |
+| [问题描述] | [原因] | ⭐⭐ |
+
+### 3.3 性能问题
+
+| 问题 | 可能原因 | 解决难度 |
+|------|----------|----------|
+| [问题描述] | [原因] | ⭐⭐ |
+| [问题描述] | [原因] | ⭐⭐⭐ |
+
+### 3.4 网络/连接问题
+
+| 问题 | 可能原因 | 解决难度 |
+|------|----------|----------|
+| [问题描述] | [原因] | ⭐ |
+| [问题描述] | [原因] | ⭐⭐ |
+
+### 3.5 数据问题
+
+| 问题 | 可能原因 | 解决难度 |
+|------|----------|----------|
+| [问题描述] | [原因] | ⭐⭐ |
+| [问题描述] | [原因] | ⭐⭐⭐ |
+
+---
+
+## 4. 详细故障排查
+
+### 4.1 [问题A名称]
+
+**现象描述：**
+
+> [用户观察到的具体现象]
+
+**可能原因：**
+
+1. 原因一：[说明]
+2. 原因二：[说明]
+3. 原因三：[说明]
+
+**排查步骤：**
+
+\`\`\`bash
+# 步骤1：检查 [组件] 状态
+[命令]
+
+# 步骤2：查看 [相关] 日志
+[命令]
+
+# 步骤3：验证 [配置]
+[命令]
+\`\`\`
+
+**解决方案：**
+
+**方案一（推荐）：**
+
+\`\`\`bash
+[修复命令]
+\`\`\`
+
+**方案二（备选）：**
+
+\`\`\`
+[备选方案说明]
+\`\`\`
+
+### 4.2 [问题B名称]
+
+（同上格式）
+
+---
+
+## 5. 日志与调试
+
+### 5.1 日志采集方法
+
+\`\`\`bash
+# 采集完整日志
+[日志采集命令]
+
+# 输出到指定文件
+[输出命令]
+\`\`\`
+
+### 5.2 启用调试模式
+
+\`\`\`bash
+# 启用调试日志
+[调试命令]
+\`\`\`
+
+### 5.3 关键日志解读
+
+| 日志内容 | 含义 | 应对措施 |
+|----------|------|----------|
+| [日志示例] | [含义] | [措施] |
+| [日志示例] | [含义] | [措施] |
+
+---
+
+## 6. 错误码参考
+
+| 错误码 | 含义 | 处理方式 |
+|--------|------|----------|
+| ERR_001 | [描述] | [处理方式] |
+| ERR_002 | [描述] | [处理方式] |
+| ERR_003 | [描述] | [处理方式] |
+
+---
+
+## 7. 联系支持
+
+### 7.1 提交工单模板
+
+\`\`\`
+## 问题描述
+[清晰描述遇到的问题]
+
+## 环境信息
+- 产品版本：[版本号]
+- 操作系统：[OS版本]
+- 部署方式：[本地/云/混合]
+
+## 复现步骤
+1. [步骤1]
+2. [步骤2]
+3. [步骤3]
+
+## 已尝试的解决方案
+[列出已尝试的方法]
+
+## 相关日志
+[粘贴关键日志]
+\`\`\`
+
+### 7.2 联系信息
+
+- 技术支持邮箱：support@example.com
+- 工单系统：[链接]
+- 响应时间：工作日 24小时内`
+      },
+      'release': {
+        id: 'release',
+        name: 'Release Notes',
+        icon: 'fa-bookmark',
+        color: 'purple',
+        desc: '版本发布说明文档',
+        outline: [
+          '1. 版本概览',
+          '   1.1 版本号与发布日期',
+          '   1.2 发布类型（Major/Minor/Patch）',
+          '',
+          '2. 新功能',
+          '   2.1 [功能A] - 一句话描述',
+          '   2.2 [功能B] - 一句话描述',
+          '',
+          '3. 功能改进',
+          '   3.1 [改进A]',
+          '   3.2 [改进B]',
+          '',
+          '4. Bug修复',
+          '   4.1 [Bug修复列表]',
+          '',
+          '5. 已知问题',
+          '   5.1 [已知问题及workaround]',
+          '',
+          '6. 兼容性说明',
+          '   6.1 向后兼容情况',
+          '   6.2 弃用功能',
+          '',
+          '7. 升级指南',
+          '   7.1 升级前注意事项',
+          '   7.2 升级步骤',
+          '   7.3 回滚方案',
+          '',
+          '8. 致谢'
+        ].join('\n'),
+        template: `# Release Notes v[版本号]
+
+**发布日期：** YYYY-MM-DD
+**发布类型：** [Major / Minor / Patch / Hotfix]
+
+---
+
+## 1. 版本概览
+
+本版本主要聚焦于 [核心主题]，共包含 [N] 个新功能、[M] 项改进和 [K] 个 Bug 修复。
+
+### 关键数据
+
+| 指标 | 数值 |
+|------|------|
+| 新增代码行数 | - |
+| 修改文件数 | - |
+| 涉及模块 | - |
+| 开发周期 | - |
+
+---
+
+## 2. 新功能
+
+### 2.1 [功能A名称]
+
+**描述：** [功能简要说明]
+
+**解决的问题：** [用户痛点 / 业务需求]
+
+**使用方式：**
+
+\`\`\`
+[使用示例]
+\`\`\`
+
+**适用场景：** [场景说明]
+
+### 2.2 [功能B名称]
+
+（同上格式）
+
+---
+
+## 3. 功能改进
+
+### 3.1 [改进A]
+
+- **之前：** [旧行为描述]
+- **之后：** [新行为描述]
+- **影响范围：** [影响说明]
+
+### 3.2 [改进B]
+
+（同上格式）
+
+---
+
+## 4. Bug 修复
+
+### 4.1 严重级别修复
+
+| ID | 模块 | 问题描述 | 报告者 |
+|----|------|----------|--------|
+| #[issue] | [模块] | [问题简述] | @[报告人] |
+| #[issue] | [模块] | [问题简述] | @[报告人] |
+
+### 4.2 一般性修复
+
+| ID | 模块 | 问题描述 |
+|----|------|----------|
+| #[issue] | [模块] | [问题简述] |
+| #[issue] | [模块] | [问题简述] |
+
+---
+
+## 5. 已知问题
+
+本版本已知问题如下，将在后续版本中修复：
+
+| 问题描述 | 影响 | 临时方案 | 计划修复版本 |
+|----------|------|----------|--------------|
+| [描述] | [影响范围] | [workaround] | v[版本] |
+| [描述] | [影响范围] | [workaround] | v[版本] |
+
+---
+
+## 6. 兼容性说明
+
+### 6.1 向后兼容
+
+- ✅ [组件A]：完全向后兼容
+- ⚠️ [组件B]：需注意 [说明]
+- ❌ [组件C]：存在破坏性变更（见下方说明）
+
+### 6.2 弃用功能
+
+以下功能将在 [版本号] 中移除，请尽快迁移：
+
+| 弃用功能 | 替代方案 | 移除版本 |
+|----------|----------|----------|
+| [功能名] | [替代方案] | v[版本] |
+
+### 6.3 破坏性变更
+
+| 变更内容 | 影响 | 迁移方案 |
+|----------|------|----------|
+| [变更说明] | [影响范围] | [迁移指导] |
+
+---
+
+## 7. 升级指南
+
+### 7.1 升级前注意事项
+
+- [ ] 备份当前配置和数据
+- [ ] 检查第三方依赖兼容性
+- [ ] 在测试环境先行验证
+- [ ] 规划维护窗口
+
+### 7.2 升级步骤
+
+\`\`\`bash
+# 步骤1：备份
+[备份命令]
+
+# 步骤2：更新
+[更新命令]
+
+# 步骤3：验证
+[验证命令]
+\`\`\`
+
+### 7.3 回滚方案
+
+如升级后出现异常，请按以下步骤回滚：
+
+\`\`\`bash
+[回滚命令]
+\`\`\`
+
+---
+
+## 8. 致谢
+
+感谢以下贡献者参与本次版本开发（按字母排序）：
+
+- @[贡献者1]
+- @[贡献者2]
+- @[贡献者3]
+
+---
+
+> 💡 如有问题，请通过 [支持渠道] 联系我们。
+> 📖 完整文档：[文档链接]`
+      },
+      'architecture': {
+        id: 'architecture',
+        name: '架构说明',
+        icon: 'fa-sitemap',
+        color: 'orange',
+        desc: '系统架构与设计文档',
+        outline: [
+          '1. 文档简介',
+          '   1.1 文档目的与读者',
+          '   1.2 系统概述',
+          '',
+          '2. 架构总览',
+          '   2.1 架构风格与设计原则',
+          '   2.2 高层架构图描述',
+          '   2.3 核心组件一览',
+          '',
+          '3. 分层架构详述',
+          '   3.1 展示层',
+          '   3.2 业务逻辑层',
+          '   3.3 数据访问层',
+          '   3.4 基础设施层',
+          '',
+          '4. 关键技术选型',
+          '   4.1 技术栈概览',
+          '   4.2 选型理由与对比',
+          '',
+          '5. 数据流与交互',
+          '   5.1 主要数据流描述',
+          '   5.2 关键交互时序',
+          '',
+          '6. 部署架构',
+          '   6.1 部署拓扑图描述',
+          '   6.2 环境配置',
+          '',
+          '7. 安全架构',
+          '   7.1 认证与授权',
+          '   7.2 数据安全',
+          '',
+          '8. 性能与扩展性',
+          '   8.1 性能指标',
+          '   8.2 扩展策略',
+          '',
+          '9. 架构决策记录 (ADR)'
+        ].join('\n'),
+        template: `# 系统架构说明文档
+
+## 1. 文档简介
+
+### 1.1 文档目的
+
+本文档描述 [系统名称] 的整体架构设计，包括组件划分、技术选型、数据流和部署方案。目标读者为开发工程师、架构师和运维人员。
+
+### 1.2 系统概述
+
+[系统名称] 是一个面向 [业务领域] 的 [系统类型]，核心能力包括：
+
+- **能力一**：[描述]
+- **能力二**：[描述]
+- **能力三**：[描述]
+
+---
+
+## 2. 架构总览
+
+### 2.1 架构风格
+
+- **架构模式：** [微服务 / 单体 / 事件驱动 / 分层架构]
+- **设计原则：**
+  - [原则一]
+  - [原则二]
+  - [原则三]
+
+### 2.2 高层架构
+
+\`\`\`
+┌─────────────────────────────────────┐
+│          客户端 / 网关层             │
+├─────────────────────────────────────┤
+│             业务服务层               │
+├─────────────────────────────────────┤
+│            数据持久层                │
+├─────────────────────────────────────┤
+│           基础设施层                 │
+└─────────────────────────────────────┘
+\`\`\`
+
+### 2.3 核心组件
+
+| 组件 | 职责 | 技术选型 |
+|------|------|----------|
+| [组件A] | [职责描述] | [技术] |
+| [组件B] | [职责描述] | [技术] |
+| [组件C] | [职责描述] | [技术] |
+
+---
+
+## 3. 分层架构详述
+
+### 3.1 展示层
+
+**职责：** 处理用户交互和界面渲染
+
+**技术栈：** [前端技术栈]
+
+**关键设计：**
+
+- [设计点1]
+- [设计点2]
+
+### 3.2 业务逻辑层
+
+**职责：** 核心业务逻辑处理
+
+**技术栈：** [后端技术栈]
+
+**关键设计：**
+
+- [设计点1]
+- [设计点2]
+
+### 3.3 数据访问层
+
+**职责：** 数据持久化与访问
+
+**技术栈：** [数据库/ORM技术]
+
+**关键设计：**
+
+- [设计点1]
+- [设计点2]
+
+### 3.4 基础设施层
+
+**职责：** 提供通用基础设施支持
+
+**组件：** 日志、监控、配置中心、消息队列、缓存等
+
+---
+
+## 4. 关键技术选型
+
+### 4.1 技术栈概览
+
+| 层级 | 技术选型 | 版本 |
+|------|----------|------|
+| 前端框架 | [框架] | [版本] |
+| 后端语言 | [语言] | [版本] |
+| 数据库 | [数据库] | [版本] |
+| 缓存 | [缓存] | [版本] |
+| 消息队列 | [MQ] | [版本] |
+| 容器化 | Docker/K8s | [版本] |
+
+### 4.2 选型理由
+
+**[技术A] vs [技术B]**
+
+| 维度 | [技术A] | [技术B] |
+|------|---------|---------|
+| 性能 | [评分/说明] | [评分/说明] |
+| 社区活跃度 | [评分/说明] | [评分/说明] |
+| 学习曲线 | [评分/说明] | [评分/说明] |
+| 生态丰富度 | [评分/说明] | [评分/说明] |
+| **结论** | [选择理由] | |
+
+---
+
+## 5. 数据流与交互
+
+### 5.1 主要数据流
+
+**数据流一：用户请求处理**
+
+\`\`\`
+Client → Gateway → ServiceA → Database
+                ↓
+            Message Queue → ServiceB → Cache
+\`\`\`
+
+**步骤说明：**
+
+1. 客户端发起请求到网关
+2. 网关路由到 ServiceA
+3. ServiceA 处理业务逻辑，写入数据库
+4. 发送消息到 MQ
+5. ServiceB 消费消息，更新缓存
+
+### 5.2 关键交互时序
+
+（详见时序图文档）
+
+---
+
+## 6. 部署架构
+
+### 6.1 部署拓扑
+
+\`\`\`
+┌─────────┐    ┌─────────┐    ┌─────────┐
+│  LB1    │───→│ Service │───→│  DB     │
+│         │    │ Cluster │    │ Primary │
+└─────────┘    └─────────┘    └─────────┘
+     │              │                │
+     │         ┌─────────┐    ┌─────────┐
+     └────────→│ Cache   │    │  DB     │
+               │ Cluster │    │ Replica │
+               └─────────┘    └─────────┘
+\`\`\`
+
+### 6.2 环境配置
+
+| 环境 | 服务器 | 配置 | 域名 |
+|------|--------|------|------|
+| 开发 | [配置] | [规格] | dev.example.com |
+| 测试 | [配置] | [规格] | test.example.com |
+| 预发布 | [配置] | [规格] | staging.example.com |
+| 生产 | [配置] | [规格] | example.com |
+
+---
+
+## 7. 安全架构
+
+### 7.1 认证与授权
+
+- **认证方式：** OAuth 2.0 / JWT
+- **授权模型：** RBAC（基于角色的访问控制）
+- **API 安全：** API Key + Rate Limiting
+
+### 7.2 数据安全
+
+- **传输加密：** TLS 1.3
+- **存储加密：** AES-256
+- **敏感数据：** 脱敏处理 + 审计日志
+
+---
+
+## 8. 性能与扩展性
+
+### 8.1 性能指标
+
+| 指标 | 目标值 | 测量方式 |
+|------|--------|----------|
+| 响应时间 (P99) | < 500ms | APM 监控 |
+| 吞吐量 | [数值] QPS | 压测 |
+| 可用性 | 99.9% | 健康检查 |
+
+### 8.2 扩展策略
+
+- **水平扩展：** [说明]
+- **垂直扩展：** [说明]
+- **自动伸缩：** [策略说明]
+
+---
+
+## 9. 架构决策记录 (ADR)
+
+| ID | 决策 | 状态 | 日期 |
+|----|------|------|------|
+| ADR-001 | [决策内容] | 已采纳 | YYYY-MM-DD |
+| ADR-002 | [决策内容] | 已采纳 | YYYY-MM-DD |`
+      }
+    };
+
+    const typeColors = {
+      blue: { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', border: 'border-blue-200', text: 'text-blue-600', light: 'bg-blue-50' },
+      green: { bg: 'bg-green-500', hover: 'hover:bg-green-600', border: 'border-green-200', text: 'text-green-600', light: 'bg-green-50' },
+      red: { bg: 'bg-red-500', hover: 'hover:bg-red-600', border: 'border-red-200', text: 'text-red-600', light: 'bg-red-50' },
+      purple: { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', border: 'border-purple-200', text: 'text-purple-600', light: 'bg-purple-50' },
+      orange: { bg: 'bg-orange-500', hover: 'hover:bg-orange-600', border: 'border-orange-200', text: 'text-orange-600', light: 'bg-orange-50' }
+    };
+
+    let currentType = null;
+    let favorites = JSON.parse(localStorage.getItem('templateFavorites') || '[]');
+
+    // ============== 变量替换系统 ==============
+    function applyVariables() {
+      const project = document.getElementById('varProject').value.trim();
+      const version = document.getElementById('varVersion').value.trim();
+      const author = document.getElementById('varAuthor').value.trim();
+      let content = document.getElementById('templateEditor').value;
+
+      let count = 0;
+      if (project) {
+        const re1 = /\[项目名称\]|\[产品名称\]|\[系统名称\]|\[package-name\]/g;
+        const matched1 = content.match(re1);
+        if (matched1) count += matched1.length;
+        content = content.replace(re1, project);
+      }
+      if (version) {
+        const re2 = /\[版本号\]|v\[版本\]/g;
+        const matched2 = content.match(re2);
+        if (matched2) count += matched2.length;
+        content = content.replace(re2, version);
+      }
+      if (author) {
+        const re3 = /\[作者\]|@\[报告人\]|@\[贡献者\]/g;
+        const matched3 = content.match(re3);
+        if (matched3) count += matched3.length;
+        content = content.replace(re3, author);
+      }
+
+      document.getElementById('templateEditor').value = content;
+      showToast('已替换 ' + count + ' 处占位符');
+    }
+
+    // ============== 收藏功能 ==============
+    function saveFavorite() {
+      if (!currentType) { showToast('请先选择文档类型'); return; }
+      const template = DOC_TEMPLATES[currentType];
+      const content = document.getElementById('templateEditor').value;
+      const project = document.getElementById('varProject').value.trim() || '未命名项目';
+      const label = prompt('为此版本命名（留空使用默认名称）：', template.name + ' - ' + project);
+      if (label === null) return;
+      const name = label.trim() || (template.name + ' - ' + project + ' - ' + new Date().toLocaleDateString('zh-CN'));
+
+      favorites.unshift({
+        id: Date.now(),
+        docTypeId: currentType,
+        docTypeName: template.name,
+        name: name,
+        content: content,
+        savedAt: new Date().toISOString()
+      });
+      if (favorites.length > 30) favorites = favorites.slice(0, 30);
+      localStorage.setItem('templateFavorites', JSON.stringify(favorites));
+      renderFavorites();
+      showToast('已收藏: ' + name);
+    }
+
+    function renderFavorites() {
+      const section = document.getElementById('favoriteSection');
+      const list = document.getElementById('favoriteList');
+      if (favorites.length === 0) { section.classList.add('hidden'); return; }
+      section.classList.remove('hidden');
+      list.innerHTML = favorites.map((f, i) => `<div class="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 text-sm group">
+        <div class="flex-1 min-w-0">
+          <div class="font-medium truncate">${f.name}</div>
+          <div class="text-xs text-gray-400">${f.docTypeName} | ${new Date(f.savedAt).toLocaleDateString('zh-CN')}</div>
+        </div>
+        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+          <button onclick="loadFavorite(${i})" class="text-blue-500 hover:text-blue-700 p-1" title="加载"><i class="fa fa-upload"></i></button>
+          <button onclick="deleteFavorite(${i})" class="text-red-400 hover:text-red-600 p-1" title="删除"><i class="fa fa-trash"></i></button>
+        </div>
+      </div>`).join('');
+    }
+
+    function loadFavorite(index) {
+      const f = favorites[index];
+      if (!f) return;
+      selectType(f.docTypeId);
+      document.getElementById('templateEditor').value = f.content;
+      showToast('已加载: ' + f.name);
+    }
+
+    function deleteFavorite(index) {
+      favorites.splice(index, 1);
+      localStorage.setItem('templateFavorites', JSON.stringify(favorites));
+      renderFavorites();
+    }
+
+    function clearFavorites() {
+      if (!confirm('确定清空所有收藏？')) return;
+      favorites = [];
+      localStorage.setItem('templateFavorites', JSON.stringify(favorites));
+      renderFavorites();
+    }
+
+    // ============== Toast提示 ==============
+    function showToast(msg) {
+      const el = document.getElementById('toast') || (() => {
+        const t = document.createElement('div');
+        t.id = 'toast';
+        t.className = 'fixed bottom-6 right-6 bg-gray-800 text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium z-50 transition-all duration-300';
+        document.body.appendChild(t); return t;
+      })();
+      el.textContent = msg; el.classList.remove('hidden', 'opacity-0'); el.classList.add('opacity-100');
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => { el.classList.add('opacity-0'); setTimeout(() => el.classList.add('hidden'), 300); }, 2500);
+    }
+
+    // ============== 初始化文档类型选择器 ==============
+    function initTypeSelector() {
+      const container = document.getElementById('docTypeSelector');
+      container.innerHTML = Object.values(DOC_TEMPLATES).map(t => {
+        const c = typeColors[t.color];
+        return `<button onclick="selectType('${t.id}')" class="p-4 border-2 rounded-xl text-center transition-all hover:shadow-md ${c.border} ${c.light}">
+          <i class="fa ${t.icon} text-2xl ${c.text}"></i>
+          <div class="font-bold mt-2">${t.name}</div>
+          <div class="text-xs text-gray-500 mt-1">${t.desc}</div>
+        </button>`;
+      }).join('');
+    }
+
+    // ============== 选择文档类型 ==============
+    function selectType(id) {
+      currentType = id;
+      const template = DOC_TEMPLATES[id];
+
+      // 更新选择器高亮
+      document.querySelectorAll('#docTypeSelector button').forEach((btn, idx) => {
+        const keys = Object.keys(DOC_TEMPLATES);
+        const isSelected = keys[idx] === id;
+        const t = DOC_TEMPLATES[keys[idx]];
+        const c = typeColors[t.color];
+        btn.className = isSelected
+          ? `p-4 border-2 rounded-xl text-center transition-all shadow-md ${c.bg} text-white`
+          : `p-4 border-2 rounded-xl text-center transition-all hover:shadow-md ${c.border} ${c.light}`;
+        if (isSelected) {
+          btn.innerHTML = `<i class="fa ${t.icon} text-2xl"></i>
+            <div class="font-bold mt-2">${t.name}</div>
+            <div class="text-xs mt-1 opacity-80">${t.desc}</div>`;
+        } else {
+          btn.innerHTML = `<i class="fa ${t.icon} text-2xl ${c.text}"></i>
+            <div class="font-bold mt-2">${t.name}</div>
+            <div class="text-xs text-gray-500 mt-1">${t.desc}</div>`;
+        }
+      });
+
+      // 显示结果区
+      document.getElementById('resultArea').classList.remove('hidden');
+      document.getElementById('outlinePreview').textContent = template.outline;
+      document.getElementById('templateEditor').value = template.template;
+
+      document.getElementById('resultArea').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ============== 复制大纲 ==============
+    function copyOutline() {
+      const text = document.getElementById('outlinePreview').textContent;
+      copyText(text, '大纲已复制到剪贴板');
+    }
+
+    // ============== 复制模板 ==============
+    function copyTemplate() {
+      const text = document.getElementById('templateEditor').value;
+      copyText(text, '模板已复制到剪贴板');
+    }
+
+    // ============== 导出为 .md 文件 ==============
+    function exportMarkdown() {
+      if (!currentType) return;
+      const template = DOC_TEMPLATES[currentType];
+      const content = document.getElementById('templateEditor').value;
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${template.name}_模板.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // ============== 通用复制（含 fallback） ==============
+    function copyText(text, successMsg) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert(successMsg || '已复制');
+        }).catch(() => {
+          fallbackCopy(text, successMsg);
+        });
+      } else {
+        fallbackCopy(text, successMsg);
+      }
+    }
+
+    function fallbackCopy(text, successMsg) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert(successMsg || '已复制');
+      } catch (e) {
+        alert('复制失败，请手动选择文本复制');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    // ============== 初始化 ==============
+    initTypeSelector();
+    renderFavorites();
+  </script>
+</body>
+</html>
